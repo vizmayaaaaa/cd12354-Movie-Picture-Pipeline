@@ -50,4 +50,5 @@ jobs:
 
       - name: Deploy Kubernetes Manifests
         run: |
-          kubectl apply -f ./starter/k8s/
+          kubectl apply -k ./starter/backend/k8s/
+          kubectl apply -k ./starter/frontend/k8s/
