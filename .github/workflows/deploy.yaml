@@ -34,7 +34,7 @@ jobs:
 
       - name: Build & Push Frontend Image
         run: |
-          docker build -t $ECR_FRONTEND:${{ github.sha }} -t $ECR_FRONTEND:latest ./starter/frontend
+          docker build --build-arg REACT_APP_MOVIE_API_URL="http://a1fcd5e9ea3eb4a9890ad23b501d8049-853545877.us-east-1.elb.amazonaws.com" -t $ECR_FRONTEND:${{ github.sha }} -t $ECR_FRONTEND:latest ./starter/frontend
           docker push $ECR_FRONTEND:${{ github.sha }}
           docker push $ECR_FRONTEND:latest
 
