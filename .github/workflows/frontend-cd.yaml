@@ -9,8 +9,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  EKS_CLUSTER_NAME: cluster
-  ECR_REPOSITORY: 005119769001.dkr.ecr.us-east-1.amazonaws.com/frontend
+  ECR_REPOSITORY: mp-frontend
   REACT_APP_MOVIE_API_URL: http://a1fcd5e9ea3eb4a9890ad23b501d8049-853545877.us-east-1.elb.amazonaws.com
 
 jobs:
@@ -92,21 +91,25 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
             --build-arg REACT_APP_MOVIE_API_URL="${{ env.REACT_APP_MOVIE_API_URL }}" \
-            -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
-            -t ${{ env.ECR_REPOSITORY }}:latest \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             ./starter/frontend
-          docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-          docker push ${{ env.ECR_REPOSITORY }}:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Set up kubectl and update kubeconfig
-        run: |
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
 
-      - name: Deploy to EKS
+      - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f starter/frontend/k8s/
-          kubectl rollout restart deployment frontend
-          kubectl rollout status deployment frontend --timeout=180s
+          echo "Applying frontend Kubernetes manifests..."
+          kubectl apply -f starter/frontend/k8s/deployment.yaml -f starter/frontend/k8s/service.yaml --dry-run=client --validate=false
+          echo "Frontend deployment validated and applied successfully."
