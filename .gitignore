@@ -18,3 +18,7 @@ setup/t.sh
 *.sh
 **/.terraform/
 *.tfstate*
+__pycache__/
+*.pyc
+__pycache__/
+*.pyc
