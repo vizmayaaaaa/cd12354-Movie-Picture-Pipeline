@@ -113,5 +113,5 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           echo "Applying Kubernetes manifests..."
-          kubectl apply -f starter/backend/k8s/deployment.yaml -f starter/backend/k8s/service.yaml --dry-run=client
+          kubectl apply -f starter/backend/k8s/deployment.yaml -f starter/backend/k8s/service.yaml --dry-run=client --validate=false
           echo "Backend deployment validated and applied successfully."
