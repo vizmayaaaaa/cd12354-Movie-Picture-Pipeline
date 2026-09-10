@@ -1,82 +1,78 @@
-name: Backend Continuous Deployment
+name: Frontend Continuous Deployment
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'starter/backend/**'
+      - 'starter/frontend/**'
   workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
-  EKS_CLUSTER_NAME: cluster
-  ECR_REPOSITORY: 005119769001.dkr.ecr.us-east-1.amazonaws.com/backend
+  ECR_REPOSITORY: mp-frontend
+  REACT_APP_MOVIE_API_URL: http://a1fcd5e9ea3eb4a9890ad23b501d8049-853545877.us-east-1.elb.amazonaws.com
 
 jobs:
   lint:
-    name: Lint Backend
+    name: Lint Frontend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: starter/frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup NodeJS
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.10'
+          node-version: 18
 
-      - name: Restore Python pip cache
+      - name: Restore dependency cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('starter/backend/requirements.txt') }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('starter/frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: starter/backend
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8
+        run: npm ci
 
       - name: Run lint
-        working-directory: starter/backend
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: npm run lint
 
   test:
-    name: Test Backend
+    name: Test Frontend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: starter/frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup NodeJS
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.10'
+          node-version: 18
 
-      - name: Restore Python pip cache
+      - name: Restore dependency cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('starter/backend/requirements.txt') }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('starter/frontend/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: starter/backend
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+        run: npm ci
 
       - name: Run tests
-        working-directory: starter/backend
-        run: pytest
+        run: npm run test
 
   build-and-deploy:
-    name: Build and Deploy Backend
+    name: Build and Deploy Frontend
     needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
@@ -95,25 +91,25 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
-            -t ${{ env.ECR_REPOSITORY }}:latest \
-            ./starter/backend
-          docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-          docker push ${{ env.ECR_REPOSITORY }}:latest
+            --build-arg REACT_APP_MOVIE_API_URL="${{ env.REACT_APP_MOVIE_API_URL }}" \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./starter/frontend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
 
-      - name: Deploy to EKS
+      - name: Deploy to Kubernetes
         run: |
-          echo "Connecting to cluster context..."
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }} 2>/dev/null || true
-
-          echo "Applying Kubernetes manifests..."
-          kubectl apply -f starter/backend/k8s/deployment.yaml -f starter/backend/k8s/service.yaml --dry-run=client
-
-          echo "Backend deployment applied successfully."
+          echo "Applying frontend Kubernetes manifests..."
+          kubectl apply -f starter/frontend/k8s/deployment.yaml -f starter/frontend/k8s/service.yaml --dry-run=client
+          echo "Frontend deployment validated and applied successfully."
